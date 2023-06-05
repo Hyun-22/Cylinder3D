@@ -101,6 +101,65 @@ class SemKITTI_sk(data.Dataset):
             data_tuple += (raw_data[:, 3],)
         return data_tuple
 
+@register_dataset
+class SemKITTI_custom(data.Dataset):
+    def __init__(self, data_path, imageset='train',
+                 return_ref=False, label_mapping="semantic-kitti.yaml", nusc=None):
+        self.return_ref = return_ref
+        with open(label_mapping, 'r') as stream:
+            semkittiyaml = yaml.safe_load(stream)
+        self.learning_map = semkittiyaml['learning_map']
+        self.imageset = imageset
+        if imageset == 'train':
+            split = semkittiyaml['split']['train']
+        elif imageset == 'val':
+            split = semkittiyaml['split']['valid']
+        elif imageset == 'test':
+            split = semkittiyaml['split']['test']
+        else:
+            raise Exception('Split must be train/val/test')
+
+        self.im_idx = []
+        data_list = [p.strip() for p in data_path.split(",")]
+        for p in data_list:
+            print("Using Dataset : {}".format(p))
+
+        for idx, data_path in enumerate(data_list):
+            tmp_pcd_files = []
+            for seq in split:
+                seq_path = os.path.join(data_path, "{0:02d}".format(seq))
+                for (path, dir, files) in os.walk(seq_path + "/velodyne"):
+                    for filename in files:
+                        file, ext = os.path.splitext(filename)
+                        if ext == '.bin':
+                            tmp_pcd_files.append(os.path.join(path, filename))
+            crop_len = len(tmp_pcd_files) // len(data_list)
+            self.im_idx += tmp_pcd_files[crop_len * idx:crop_len * (idx + 1)]
+            tmp_pcd_files.clear()   
+            print(len(self.im_idx))
+            
+        # debug with small sample
+        self.im_idx = self.im_idx[:30]
+
+    def __len__(self):
+        'Denotes the total number of samples'
+        return len(self.im_idx)
+
+    def __getitem__(self, index):
+        raw_data = np.fromfile(self.im_idx[index], dtype=np.float32).reshape((-1, 4))
+        if self.imageset == 'test':
+            annotated_data = np.expand_dims(np.zeros_like(raw_data[:, 0], dtype=int), axis=1)
+        else:
+            annotated_data = np.fromfile(self.im_idx[index].replace('velodyne', 'labels')[:-3] + 'label',
+                                         dtype=np.uint32).reshape((-1, 1))
+            annotated_data = annotated_data & 0xFFFF  # delete high 16 digits binary
+            annotated_data = np.vectorize(self.learning_map.__getitem__)(annotated_data)
+
+        data_tuple = (raw_data[:, :3], annotated_data.astype(np.uint8))
+        if self.return_ref:
+            data_tuple += (raw_data[:, 3],)
+        return data_tuple    
+
 
 @register_dataset
 class SemKITTI_nusc(data.Dataset):
