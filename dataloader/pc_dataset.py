@@ -139,7 +139,7 @@ class SemKITTI_custom(data.Dataset):
             print(len(self.im_idx))
             
         # debug with small sample
-        self.im_idx = self.im_idx[:30]
+        # self.im_idx = self.im_idx[:30]
 
     def __len__(self):
         'Denotes the total number of samples'
