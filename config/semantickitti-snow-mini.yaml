@@ -62,6 +62,7 @@ val_data_loader:
 train_params:
   model_load_path: "./logs/mixed_snow/model_load.pt"
   model_save_path: "./logs/mixed_snow/model_save.pt"
+  log_save_path: "./logs/mixed_snow"
   checkpoint_every_n_steps: 4599
   max_num_epochs: 20
   eval_every_n_steps: 4599

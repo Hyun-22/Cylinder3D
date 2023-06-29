@@ -41,7 +41,7 @@ dataset_params:
 ###################
 ## Data_loader options
 train_data_loader:
-  data_path: "/home/ailab/AILabDataset/02_Custom_Dataset/11_SemanticWeatherRainFog/rain_30/sequences, /home/ailab/AILabDataset/02_Custom_Dataset/11_SemanticWeatherRainFog/rain_20/sequences, /home/ailab/AILabDataset/02_Custom_Dataset/11_SemanticWeatherRainFog/rain_10/sequences, /home/ailab/AILabDataset/01_Open_Dataset/02_SemanticKITTI/SemanticKITTI_w_images/sequences"
+  data_path: "/home/ailab/AILabDataset/01_Open_Dataset/02_SemanticKITTI/SemanticKITTI_w_images/sequences"
   imageset: "train"
   return_ref: True
   batch_size: 2
@@ -60,9 +60,9 @@ val_data_loader:
 ###################
 ## Train params
 train_params:
-  model_load_path: "./logs/mixed_rain/model_load.pt"
-  model_save_path: "./logs/mixed_rain/model_save.pt"
-  log_save_path: "./logs/mixed_rain"
+  model_load_path: "./logs/train_normal_mixed_rain/model_load.pt"
+  model_save_path: "./logs/train_normal_mixed_rain/model_save.pt"
+  log_save_path: "./logs/train_normal_mixed_rain"
   checkpoint_every_n_steps: 4599
   max_num_epochs: 20
   eval_every_n_steps: 4599

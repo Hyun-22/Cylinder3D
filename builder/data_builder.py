@@ -11,7 +11,8 @@ def build(dataset_config,
           train_dataloader_config,
           val_dataloader_config,
           grid_size=[480, 360, 32]):
-    data_path = train_dataloader_config["data_path"]
+    train_data_path = train_dataloader_config["data_path"]
+    valid_data_path = val_dataloader_config["data_path"]
     train_imageset = train_dataloader_config["imageset"]
     val_imageset = val_dataloader_config["imageset"]
     train_ref = train_dataloader_config["return_ref"]
@@ -26,9 +27,9 @@ def build(dataset_config,
         from nuscenes import NuScenes
         nusc = NuScenes(version='v1.0-trainval', dataroot=data_path, verbose=True)
 
-    train_pt_dataset = SemKITTI(data_path, imageset=train_imageset,
+    train_pt_dataset = SemKITTI(train_data_path, imageset=train_imageset,
                                 return_ref=train_ref, label_mapping=label_mapping, nusc=nusc)
-    val_pt_dataset = SemKITTI(data_path, imageset=val_imageset,
+    val_pt_dataset = SemKITTI(valid_data_path, imageset=val_imageset,
                               return_ref=val_ref, label_mapping=label_mapping, nusc=nusc)
 
     train_dataset = get_model_class(dataset_config['dataset_type'])(

@@ -23,6 +23,11 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+def save_to_log(logdir, logfile, message):
+    f = open(logdir + '/' + logfile, "a")
+    f.write(message + '\n')
+    f.close()
+    return
 
 def main(args):
     pytorch_device = torch.device('cuda:0')
@@ -47,6 +52,7 @@ def main(args):
 
     model_load_path = train_hypers['model_load_path']
     model_save_path = train_hypers['model_save_path']
+    log_save_path = train_hypers['log_save_path']
 
     SemKITTI_label_name = get_SemKITTI_label_name(dataset_config["label_mapping"])
     unique_label = np.asarray(sorted(list(SemKITTI_label_name.keys())))[1:] - 1
@@ -137,9 +143,11 @@ def main(args):
                 val_loss_list.append(loss.detach().cpu().numpy())
         my_model.train()
         iou = per_class_iu(sum(hist_list))
-        print('Validation per class iou: ')
+        msg = 'Validation per class iou: '
+        save_to_log(log_save_path, "log.txt", msg)
         for class_name, class_iou in zip(unique_label_str, iou):
-            print('%s : %.2f%%' % (class_name, class_iou * 100))
+            msg = '%s : %.2f%%' % (class_name, class_iou * 100)
+            save_to_log(log_save_path, "log.txt", msg)
         val_miou = np.nanmean(iou) * 100
         del val_vox_label, val_grid, val_pt_fea, val_grid_ten
 
@@ -148,11 +156,11 @@ def main(args):
             best_val_miou = val_miou
             torch.save(my_model.state_dict(), model_save_path)
 
-        print('Current val miou is %.3f while the best val miou is %.3f' %
-                (val_miou, best_val_miou))
-        print('Current val loss is %.3f' %
-                (np.mean(val_loss_list)))                    
-
+        msg = 'Current val miou is %.3f while the best val miou is %.3f' % (val_miou, best_val_miou)
+        save_to_log(log_save_path, "log.txt", msg)
+        msg = 'Current val loss is %.3f' %(np.mean(val_loss_list))
+        save_to_log(log_save_path, "log.txt", msg)
+        
         pbar.close()
         epoch += 1
 
