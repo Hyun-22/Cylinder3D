@@ -41,7 +41,8 @@ dataset_params:
 ###################
 ## Data_loader options
 train_data_loader:
-  data_path: "/home/ailab/AILabDataset/02_Custom_Dataset/11_SemanticWeatherRainFog/snow_30/sequences, /home/ailab/AILabDataset/02_Custom_Dataset/11_SemanticWeatherRainFog/snow_20/sequences, /home/ailab/AILabDataset/02_Custom_Dataset/11_SemanticWeatherRainFog/snow_10/sequences, /home/ailab/AILabDataset/01_Open_Dataset/02_SemanticKITTI/SemanticKITTI_w_images/sequences"
+  # HERE
+  data_path: "/home/ailab//AILabDataset/02_Custom_Dataset/16_SemanticKITTI_adverse_weather/ours_new/rain_20/sequences, /home/ailab//AILabDataset/02_Custom_Dataset/16_SemanticKITTI_adverse_weather/ours_new/rain_10/sequences, /home/ailab/AILabDataset/01_Open_Dataset/02_SemanticKITTI/SemanticKITTI_w_images/sequences"
   imageset: "train"
   return_ref: True
   batch_size: 2
@@ -49,7 +50,8 @@ train_data_loader:
   num_workers: 4
 
 val_data_loader:
-  data_path: "/home/ailab/AILabDataset/02_Custom_Dataset/11_SemanticWeatherRainFog/snow_30/sequences, /home/ailab/AILabDataset/02_Custom_Dataset/11_SemanticWeatherRainFog/snow_20/sequences, /home/ailab/AILabDataset/02_Custom_Dataset/11_SemanticWeatherRainFog/snow_10/sequences, /home/ailab/AILabDataset/01_Open_Dataset/02_SemanticKITTI/SemanticKITTI_w_images/sequences"
+  # HERE
+  data_path: "/home/ailab//AILabDataset/02_Custom_Dataset/16_SemanticKITTI_adverse_weather/ours_new/rain_20/sequences, /home/ailab//AILabDataset/02_Custom_Dataset/16_SemanticKITTI_adverse_weather/ours_new/rain_10/sequences, /home/ailab/AILabDataset/01_Open_Dataset/02_SemanticKITTI/SemanticKITTI_w_images/sequences"
   imageset: "val"
   return_ref: True
   batch_size: 1
@@ -60,9 +62,11 @@ val_data_loader:
 ###################
 ## Train params
 train_params:
-  model_load_path: "./logs/train_lisa_valid_lisa/model_load.pt"
-  model_save_path: "./logs/train_lisa_valid_lisa/model_save.pt"
-  log_save_path: "./logs/train_lisa_valid_lisa"
+  # HERE
+  model_load_path: "./logs/ours_mixed_rain/model_load.pt"
+  model_save_path: "./logs/ours_mixed_rain/model_save.pt"
+  log_save_path: "./logs/ours_mixed_rain"
+  # ~HERE
   checkpoint_every_n_steps: 4599
   max_num_epochs: 20
   eval_every_n_steps: 4599

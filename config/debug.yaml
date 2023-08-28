@@ -60,9 +60,9 @@ val_data_loader:
 ###################
 ## Train params
 train_params:
-  model_load_path: "./logs/train_lisa_valid_lisa/model_load.pt"
-  model_save_path: "./logs/train_lisa_valid_lisa/model_save.pt"
-  log_save_path: "./logs/train_lisa_valid_lisa"
+  model_load_path: "./logs/test/model_load.pt"
+  model_save_path: "./logs/test/model_save.pt"
+  log_save_path: "./logs/test"
   checkpoint_every_n_steps: 4599
   max_num_epochs: 20
   eval_every_n_steps: 4599

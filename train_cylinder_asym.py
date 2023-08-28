@@ -67,7 +67,7 @@ def main(args):
 
     loss_func, lovasz_softmax = loss_builder.build(wce=True, lovasz=True,
                                                    num_class=num_class, ignore_label=ignore_label)
-
+    clf_loss_func = torch.nn.CrossEntropyLoss()
     train_dataset_loader, val_dataset_loader = data_builder.build(dataset_config,
                                                                   train_dataloader_config,
                                                                   val_dataloader_config,
@@ -85,16 +85,23 @@ def main(args):
         pbar = tqdm(total=len(train_dataset_loader))
         time.sleep(3)
         # lr_scheduler.step(epoch)
-        for i_iter, (_, train_vox_label, train_grid, _, train_pt_fea) in enumerate(train_dataset_loader):
+        for i_iter, (_, train_vox_label, train_grid, _, train_pt_fea, weather_gt) in enumerate(train_dataset_loader):
             train_pt_fea_ten = [torch.from_numpy(i).type(torch.FloatTensor).to(pytorch_device) for i in train_pt_fea]
             # train_grid_ten = [torch.from_numpy(i[:,:2]).to(pytorch_device) for i in train_grid]
             train_vox_ten = [torch.from_numpy(i).to(pytorch_device) for i in train_grid]
             point_label_tensor = train_vox_label.type(torch.LongTensor).to(pytorch_device)
             train_batch_size = train_vox_label.shape[0]
+            weather_gt = torch.tensor(weather_gt).to(pytorch_device).long()
             # forward + backward + optimize
-            outputs = my_model(train_pt_fea_ten, train_vox_ten, train_batch_size)
+            outputs, weathers = my_model(train_pt_fea_ten, train_vox_ten, train_batch_size)
+            
+            softmax_weathers = torch.softmax(weathers, dim=1)
+            max_weathers = torch.argmax(softmax_weathers, dim=1)
+            
             loss = lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0) + loss_func(
-                outputs, point_label_tensor)
+                outputs, point_label_tensor) + clf_loss_func(weathers, weather_gt)
+            print("===================")
+            print(max_weathers, weather_gt, clf_loss_func(weathers, weather_gt))
             loss.backward()
             optimizer.step()
             loss_list.append(loss.item())
@@ -119,9 +126,11 @@ def main(args):
         my_model.eval()
         hist_list = []
         val_loss_list = []
+        weather_pred_list = []
+        weather_gt_list = []
         # validation
         with torch.no_grad():
-            for i_iter_val, (_, val_vox_label, val_grid, val_pt_labs, val_pt_fea) in enumerate(
+            for i_iter_val, (_, val_vox_label, val_grid, val_pt_labs, val_pt_fea, weather_gt) in enumerate(
                     val_dataset_loader):
 
                 val_pt_fea_ten = [torch.from_numpy(i).type(torch.FloatTensor).to(pytorch_device) for i in
@@ -129,12 +138,23 @@ def main(args):
                 val_grid_ten = [torch.from_numpy(i).to(pytorch_device) for i in val_grid]
                 val_label_tensor = val_vox_label.type(torch.LongTensor).to(pytorch_device)
                 val_batch_size = val_vox_label.shape[0]
-                predict_labels = my_model(val_pt_fea_ten, val_grid_ten, val_batch_size)
+                weather_gt = torch.tensor(weather_gt).to(pytorch_device).long()
+                
+                predict_labels, predict_weathers = my_model(val_pt_fea_ten, val_grid_ten, val_batch_size)
+                
+                softmax_weathers = torch.softmax(predict_weathers, dim=1)
+                max_weathers = torch.argmax(softmax_weathers, dim=1)
+
                 # aux_loss = loss_fun(aux_outputs, point_label_tensor)
                 loss = lovasz_softmax(torch.nn.functional.softmax(predict_labels).detach(), val_label_tensor,
                                         ignore=0) + loss_func(predict_labels.detach(), val_label_tensor)
                 predict_labels = torch.argmax(predict_labels, dim=1)
                 predict_labels = predict_labels.cpu().detach().numpy()
+
+                weather_pred_list.append(max_weathers.item())
+                weather_gt_list.append(weather_gt.item())
+                print("===================")
+                print(max_weathers, weather_gt, clf_loss_func(predict_weathers, weather_gt))
                 for count, i_val_grid in enumerate(val_grid):
                     hist_list.append(fast_hist_crop(predict_labels[
                                                         count, val_grid[count][:, 0], val_grid[count][:, 1],
@@ -142,6 +162,15 @@ def main(args):
                                                     unique_label))
                 val_loss_list.append(loss.detach().cpu().numpy())
         my_model.train()
+        weather_pred_arr = np.array(weather_pred_list)
+        weather_gt_arr = np.array(weather_gt_list)
+        correct = np.sum(weather_pred_arr == weather_gt_arr)
+        total = len(weather_gt_arr)
+        accuracy = correct / total
+
+        msg = "weather accuracy: {}".format(accuracy) 
+        save_to_log(log_save_path, "log.txt", msg)
+        
         iou = per_class_iu(sum(hist_list))
         msg = 'Validation per class iou: '
         save_to_log(log_save_path, "log.txt", msg)

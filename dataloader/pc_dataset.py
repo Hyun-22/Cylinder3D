@@ -7,7 +7,7 @@ import numpy as np
 from torch.utils import data
 import yaml
 import pickle
-
+import random
 REGISTERED_PC_DATASET_CLASSES = {}
 
 
@@ -114,32 +114,65 @@ class SemKITTI_custom(data.Dataset):
             split = semkittiyaml['split']['train']
         elif imageset == 'val':
             split = semkittiyaml['split']['valid']
+        elif imageset == 'val_stf':
+            split = semkittiyaml['split']['valid']            
         elif imageset == 'test':
             split = semkittiyaml['split']['test']
         else:
             raise Exception('Split must be train/val/test')
-
-        self.im_idx = []
-        data_list = [p.strip() for p in data_path.split(",")]
-        for p in data_list:
-            print("Using Dataset : {}".format(p))
-
-        for idx, data_path in enumerate(data_list):
-            tmp_pcd_files = []
-            for seq in split:
-                seq_path = os.path.join(data_path, "{0:02d}".format(seq))
-                for (path, dir, files) in os.walk(seq_path + "/velodyne"):
+        
+        if imageset == 'val_stf':
+            self.im_idx = []
+            data_list = [p.strip() for p in data_path.split(",")]
+            for p in data_list:
+                print("Using Dataset : {}".format(p))
+            for idx, data_path in enumerate(data_list):
+                tmp_pcd_files = []
+                
+                for (path, dir, files) in os.walk(data_path + "/velodyne"):
                     for filename in files:
                         file, ext = os.path.splitext(filename)
                         if ext == '.bin':
                             tmp_pcd_files.append(os.path.join(path, filename))
-            crop_len = len(tmp_pcd_files) // len(data_list)
-            self.im_idx += tmp_pcd_files[crop_len * idx:crop_len * (idx + 1)]
-            tmp_pcd_files.clear()   
-            print(len(self.im_idx))
-            
+                                    
+                # crop_len = len(tmp_pcd_files) // len(data_list)                                    
+                # self.im_idx += tmp_pcd_files[crop_len * idx:crop_len * (idx + 1)]
+                self.im_idx += tmp_pcd_files
+                tmp_pcd_files.clear()   
+                print(len(self.im_idx))
+                                    
+        else:
+            self.im_idx = []
+            data_list = [p.strip() for p in data_path.split(",")]
+            for p in data_list:
+                print("Using Dataset : {}".format(p))
+
+            for idx, data_path in enumerate(data_list):
+                tmp_pcd_files = []
+                
+                for seq in split:
+                    seq_path = os.path.join(data_path, "{0:02d}".format(seq))
+                    for (path, dir, files) in os.walk(seq_path + "/velodyne"):
+                        for filename in files:
+                            file, ext = os.path.splitext(filename)
+                            if ext == '.bin':
+                                tmp_pcd_files.append(os.path.join(path, filename))
+                crop_len = len(tmp_pcd_files) // len(data_list)
+                
+                # TODO : Fix slicing method
+                # if ("snow" in data_path) or ("rain" in data_path):
+                #     self.im_idx += tmp_pcd_files
+                # else:
+                #     self.im_idx += tmp_pcd_files[crop_len * idx:crop_len * (idx + 1)]
+                
+                self.im_idx += tmp_pcd_files[crop_len * idx:crop_len * (idx + 1)]
+                tmp_pcd_files.clear()   
+                print(len(self.im_idx))
+            # self.im_idx = self.im_idx[:21]
+        random.shuffle(self.im_idx)
+        
         # debug with small sample
-        # self.im_idx = self.im_idx[:30]
+        # self.im_idx = self.im_idx[:50]
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -147,6 +180,26 @@ class SemKITTI_custom(data.Dataset):
 
     def __getitem__(self, index):
         raw_data = np.fromfile(self.im_idx[index], dtype=np.float32).reshape((-1, 4))
+        weather_info = self.im_idx[index].split(os.sep)[-5]
+        
+        if self.imageset == 'val_stf':
+            if "10" in weather_info:
+                weather_class = 1
+            elif "20" in weather_info:
+                weather_class = 2
+            else:
+                weather_class = 0
+        else:
+            if "10" in weather_info:
+                weather_class = 1
+            elif "20" in weather_info:
+                weather_class = 2
+            elif "30" in weather_info:
+                weather_class = 3
+            else:
+                weather_class = 0
+                
+        # print("weather class : {} and weather info :{}".format(weather_class, weather_info))
         if self.imageset == 'test':
             annotated_data = np.expand_dims(np.zeros_like(raw_data[:, 0], dtype=int), axis=1)
         else:
@@ -158,6 +211,8 @@ class SemKITTI_custom(data.Dataset):
         data_tuple = (raw_data[:, :3], annotated_data.astype(np.uint8))
         if self.return_ref:
             data_tuple += (raw_data[:, 3],)
+
+        data_tuple += (weather_class,)
         return data_tuple    
 
 

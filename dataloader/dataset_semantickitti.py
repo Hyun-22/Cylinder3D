@@ -195,6 +195,9 @@ class cylinder_dataset(data.Dataset):
         elif len(data) == 3:
             xyz, labels, sig = data
             if len(sig.shape) == 2: sig = np.squeeze(sig)
+        elif len(data) == 4:
+            xyz, labels, sig, weather = data
+            if len(sig.shape) == 2: sig = np.squeeze(sig)            
         else:
             raise Exception('Return invalid data tuple')
 
@@ -267,11 +270,13 @@ class cylinder_dataset(data.Dataset):
             return_fea = return_xyz
         elif len(data) == 3:
             return_fea = np.concatenate((return_xyz, sig[..., np.newaxis]), axis=1)
-
+        elif len(data) == 4:
+            return_fea = np.concatenate((return_xyz, sig[..., np.newaxis]), axis=1)
         if self.return_test:
             data_tuple += (grid_ind, labels, return_fea, index)
         else:
             data_tuple += (grid_ind, labels, return_fea)
+        data_tuple += (weather,)
         return data_tuple
 
 
@@ -399,7 +404,8 @@ def collate_fn_BEV(data):
     grid_ind_stack = [d[2] for d in data]
     point_label = [d[3] for d in data]
     xyz = [d[4] for d in data]
-    return torch.from_numpy(data2stack), torch.from_numpy(label2stack), grid_ind_stack, point_label, xyz
+    weathers = [d[5] for d in data]
+    return torch.from_numpy(data2stack), torch.from_numpy(label2stack), grid_ind_stack, point_label, xyz, weathers
 
 
 def collate_fn_BEV_test(data):
