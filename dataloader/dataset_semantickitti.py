@@ -266,12 +266,15 @@ class cylinder_dataset(data.Dataset):
         return_xyz = xyz_pol - voxel_centers
         return_xyz = np.concatenate((return_xyz, xyz_pol, xyz[:, :2]), axis=1)
 
+        # len(data) == 4
         if len(data) == 2:
             return_fea = return_xyz
         elif len(data) == 3:
             return_fea = np.concatenate((return_xyz, sig[..., np.newaxis]), axis=1)
         elif len(data) == 4:
             return_fea = np.concatenate((return_xyz, sig[..., np.newaxis]), axis=1)
+        # return_fea shape : n,9
+        # rel x,y,z / pol x,y,z / cat x,y / sig
         if self.return_test:
             data_tuple += (grid_ind, labels, return_fea, index)
         else:
@@ -403,6 +406,7 @@ def collate_fn_BEV(data):
     label2stack = np.stack([d[1] for d in data]).astype(np.int64)
     grid_ind_stack = [d[2] for d in data]
     point_label = [d[3] for d in data]
+    # rel x,y,z / pol x,y,z / cat x,y / sig
     xyz = [d[4] for d in data]
     weathers = [d[5] for d in data]
     return torch.from_numpy(data2stack), torch.from_numpy(label2stack), grid_ind_stack, point_label, xyz, weathers

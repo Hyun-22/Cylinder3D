@@ -12,7 +12,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "/home/ailab/Desktop/git/Cylinder3D",
-            "args": ["-y", "config/debug.yaml"]
+            "args": ["-y", "/home/ailab/Desktop/git/Cylinder3D/config/train_ours_valid_ours_snow_binaryclf.yaml"]
         }
     ]
 }

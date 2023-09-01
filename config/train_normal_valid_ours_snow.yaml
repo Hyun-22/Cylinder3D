@@ -41,10 +41,10 @@ dataset_params:
 ###################
 ## Data_loader options
 train_data_loader:
-  data_path: "/home/ailab//AILabDataset/02_Custom_Dataset/16_SemanticKITTI_adverse_weather/ours_new/snow_20/sequences, /home/ailab//AILabDataset/02_Custom_Dataset/16_SemanticKITTI_adverse_weather/ours_new/snow_10/sequences, /home/ailab/AILabDataset/01_Open_Dataset/02_SemanticKITTI/SemanticKITTI_w_images/sequences"
-  imageset: "train_ours"
+  data_path: "/home/ailab/AILabDataset/01_Open_Dataset/02_SemanticKITTI/SemanticKITTI_w_images/sequences"
+  imageset: "train"
   return_ref: True
-  batch_size: 1
+  batch_size: 2
   shuffle: True
   num_workers: 4
 
@@ -60,9 +60,9 @@ val_data_loader:
 ###################
 ## Train params
 train_params:
-  model_load_path: "./logs/test/model_load.pt"
-  model_save_path: "./logs/test/model_save.pt"
-  log_save_path: "./logs/test"
+  model_load_path: "./logs/train_normal_valid_ours_snow/model_load.pt"
+  model_save_path: "./logs/train_normal_valid_ours_snow/model_save.pt"
+  log_save_path: "./logs/train_normal_valid_ours_snow"
   checkpoint_every_n_steps: 4599
   max_num_epochs: 20
   eval_every_n_steps: 4599

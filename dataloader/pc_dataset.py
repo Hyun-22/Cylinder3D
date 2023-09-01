@@ -110,13 +110,11 @@ class SemKITTI_custom(data.Dataset):
             semkittiyaml = yaml.safe_load(stream)
         self.learning_map = semkittiyaml['learning_map']
         self.imageset = imageset
-        if imageset == 'train':
+        if 'train' in imageset:
             split = semkittiyaml['split']['train']
-        elif imageset == 'val':
+        elif "val" in imageset:
             split = semkittiyaml['split']['valid']
-        elif imageset == 'val_stf':
-            split = semkittiyaml['split']['valid']            
-        elif imageset == 'test':
+        elif 'test' in imageset:
             split = semkittiyaml['split']['test']
         else:
             raise Exception('Split must be train/val/test')
@@ -140,7 +138,32 @@ class SemKITTI_custom(data.Dataset):
                 self.im_idx += tmp_pcd_files
                 tmp_pcd_files.clear()   
                 print(len(self.im_idx))
-                                    
+        elif imageset == 'val_ours' or imageset == 'train_ours' or imageset == 'val_ours_binaryclf' or imageset == 'train_ours_binaryclf':
+            self.im_idx = []
+            data_list = [p.strip() for p in data_path.split(",")]
+            for p in data_list:
+                print("Using Dataset : {}".format(p))
+
+            for idx, data_path in enumerate(data_list):
+                tmp_pcd_files = []
+                
+                for seq in split:
+                    seq_path = os.path.join(data_path, "{0:02d}".format(seq))
+                    for (path, dir, files) in os.walk(seq_path + "/velodyne"):
+                        for filename in files:
+                            file, ext = os.path.splitext(filename)
+                            if ext == '.bin':
+                                tmp_pcd_files.append(os.path.join(path, filename))
+                crop_len = len(tmp_pcd_files) // len(data_list)
+                
+            
+                if ("snow" in data_path) or ("rain" in data_path):
+                    self.im_idx += tmp_pcd_files
+                else:
+                    self.im_idx += tmp_pcd_files[crop_len * idx:crop_len * (idx + 1)]
+                
+                tmp_pcd_files.clear()   
+                print(len(self.im_idx))                                    
         else:
             self.im_idx = []
             data_list = [p.strip() for p in data_path.split(",")]
@@ -169,7 +192,10 @@ class SemKITTI_custom(data.Dataset):
                 tmp_pcd_files.clear()   
                 print(len(self.im_idx))
             # self.im_idx = self.im_idx[:21]
-        random.shuffle(self.im_idx)
+        if 'train' in imageset:
+            random.shuffle(self.im_idx)
+        else:
+            self.im_idx.sort()
         
         # debug with small sample
         # self.im_idx = self.im_idx[:50]
@@ -187,6 +213,15 @@ class SemKITTI_custom(data.Dataset):
                 weather_class = 1
             elif "20" in weather_info:
                 weather_class = 2
+            else:
+                weather_class = 0            
+        if "binary" in self.imageset:
+            if "10" in weather_info:
+                weather_class = 1
+            elif "20" in weather_info:
+                weather_class = 1
+            elif "30" in weather_info:
+                weather_class = 1
             else:
                 weather_class = 0
         else:

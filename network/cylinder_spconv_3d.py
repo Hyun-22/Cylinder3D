@@ -25,6 +25,9 @@ def get_model_class(name):
 
 @register_model
 class cylinder_asym(nn.Module):
+    '''
+    network for lisa dataset
+    '''
     def __init__(self,
                  cylin_model,
                  segmentator_spconv,
@@ -36,7 +39,56 @@ class cylinder_asym(nn.Module):
         self.cylinder_3d_generator = cylin_model
 
         self.cylinder_3d_spconv_seg = segmentator_spconv
-        self.weather_clf = test_clf()
+        self.weather_clf = test_clf(num_class = 4)
+        self.sparse_shape = sparse_shape
+
+    def forward(self, train_pt_fea_ten, train_vox_ten, batch_size):
+        coords, features_3d, pts_feature = self.cylinder_3d_generator(train_pt_fea_ten, train_vox_ten)
+        spatial_features = self.cylinder_3d_spconv_seg(features_3d, coords, batch_size)
+        weather_result = self.weather_clf(pts_feature, coords)
+        return spatial_features, weather_result
+
+@register_model
+class cylinder_asym_ours(nn.Module):
+    '''
+    network for lisa dataset
+    '''
+    def __init__(self,
+                 cylin_model,
+                 segmentator_spconv,
+                 sparse_shape,
+                 ):
+        super().__init__()
+        self.name = "cylinder_asym"
+
+        self.cylinder_3d_generator = cylin_model
+
+        self.cylinder_3d_spconv_seg = segmentator_spconv
+        self.weather_clf = test_clf(num_class = 3)
+        self.sparse_shape = sparse_shape
+
+    def forward(self, train_pt_fea_ten, train_vox_ten, batch_size):
+        coords, features_3d, pts_feature = self.cylinder_3d_generator(train_pt_fea_ten, train_vox_ten)
+        spatial_features = self.cylinder_3d_spconv_seg(features_3d, coords, batch_size)
+        weather_result = self.weather_clf(pts_feature, coords)
+        return spatial_features, weather_result
+@register_model
+class cylinder_asym_ours_binary(nn.Module):
+    '''
+    network for lisa dataset
+    '''
+    def __init__(self,
+                 cylin_model,
+                 segmentator_spconv,
+                 sparse_shape,
+                 ):
+        super().__init__()
+        self.name = "cylinder_asym"
+
+        self.cylinder_3d_generator = cylin_model
+
+        self.cylinder_3d_spconv_seg = segmentator_spconv
+        self.weather_clf = test_clf(num_class = 2)
         self.sparse_shape = sparse_shape
 
     def forward(self, train_pt_fea_ten, train_vox_ten, batch_size):
