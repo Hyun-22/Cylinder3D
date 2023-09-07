@@ -304,7 +304,7 @@ class SparseGlobalMaxPool(spconv.SparseModule):
             feature_len += cnt[batch]
             single_batch_feature = features[prev_feature_len:feature_len,:]
             prev_feature_len += cnt[batch]
-            max_feature = torch.max(single_batch_feature, dim=0)
+            max_feature, max_idx = torch.max(single_batch_feature, dim=0)
             max_feature = max_feature.unsqueeze(0)
             return_feat = torch.cat((return_feat, max_feature), dim=0)
         
@@ -861,7 +861,7 @@ class Asymm_3d_spconv_clf_v6(nn.Module):
         
         # 512 -> 256
         # init_size = 16
-        # self.weather_logits = spconv.SubMConv3d(4 * init_size, 64, indice_key="weather_logit", kernel_size=3, stride=1, padding=1,bias=True)
+        self.weather_logits = spconv.SubMConv3d(4 * init_size, 64, indice_key="weather_logit", kernel_size=3, stride=1, padding=1,bias=True)
         self.weather_max_pool = SparseGlobalMaxPool()
         # 256 -> 128
         self.weather_fc1 = nn.Linear(64, 32)
@@ -899,9 +899,9 @@ class Asymm_3d_spconv_clf_v6(nn.Module):
         # down4c : m, 512
         down4c, down4b = self.resBlock5(down3c)
         
-        # weather_feat1 = self.weather_logits(down2c)
-        weather_feat2 = self.weather_max_pool(down2c)
-        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2.features)))
+        weather_feat1 = self.weather_logits(down2c)
+        weather_feat2 = self.weather_max_pool(weather_feat1)
+        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2)))
         weather_feat4 = self.bn2(self.relu2(self.weather_fc2(weather_feat3)))
         weather_result = self.weather_fc3(weather_feat4)
         

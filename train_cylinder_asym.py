@@ -30,7 +30,7 @@ def save_to_log(logdir, logfile, message):
     return
 
 def main(args):
-    pytorch_device = torch.device('cuda:1')
+    pytorch_device = torch.device('cuda:0')
 
     config_path = args.config_path
 
@@ -104,6 +104,7 @@ def main(args):
             print("===================")
             print("pcss loss : ", lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0))
             print("ce loss : ", loss_func(outputs, point_label_tensor))
+            print("weather prob : ", softmax_weathers)
             print(max_weathers, weather_gt, clf_loss_func(weathers, weather_gt))
             loss.backward()
             optimizer.step()
