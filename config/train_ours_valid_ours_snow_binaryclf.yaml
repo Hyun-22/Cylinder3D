@@ -30,8 +30,7 @@ dataset_params:
   label_mapping: "./config/label_mapping/semantic-kitti-weather-mini.yaml"
   max_volume_space:
     - 50
-    # - 3.1415926
-    - 10
+    - 3.1415926
     - 2
   min_volume_space:
     - 0

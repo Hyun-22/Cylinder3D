@@ -4,7 +4,8 @@ format_version: 4
 ###################
 ## Model options
 model_params:
-  model_architecture: "cylinder_asym_ours"
+  # model_architecture: "cylinder_asym_ours"
+  model_architecture: "cylinder_asym_ours_test"
 
   output_shape:
     - 480

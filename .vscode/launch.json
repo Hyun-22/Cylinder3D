@@ -12,7 +12,12 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "/home/ailab/Desktop/git/Cylinder3D",
-            "args": ["-y", "/home/ailab/Desktop/git/Cylinder3D/config/train_ours_valid_ours_snow_binaryclf.yaml"]
+            // "args": ["-y", "/home/ailab/Desktop/git/Cylinder3D/config/train_ours_valid_ours_snow_binaryclf.yaml"]
+            "args":["-y", "./config/train_ours_valid_ours_snow_test.yaml",]
+            // "-d", "/home/ailab/AILabDataset/02_Custom_Dataset/20_Real_adverse_weather/ku_around_1_bin"]
+            // "-d", "/home/ailab/AILabDataset/02_Custom_Dataset/16_SemanticKITTI_adverse_weather/ours_new/snow_20/sequences/08/velodyne"]
+            // "-d", "/home/ailab/AILabDataset/02_Custom_Dataset/20_Real_adverse_weather/perception_0823"]
+            // "-d", "/home/ailab/AILabDataset/01_Open_Dataset/02_SemanticKITTI/SemanticKITTI/sequences/08/velodyne"]
         }
     ]
 }

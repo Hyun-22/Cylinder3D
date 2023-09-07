@@ -30,7 +30,7 @@ def save_to_log(logdir, logfile, message):
     return
 
 def main(args):
-    pytorch_device = torch.device('cuda:1')
+    pytorch_device = torch.device('cuda:0')
 
     config_path = args.config_path
 
@@ -52,8 +52,9 @@ def main(args):
 
     model_load_path = train_hypers['model_load_path']
     model_save_path = train_hypers['model_save_path']
+    
+    model_save_path = model_save_path.replace(".pt", "_partial_test.pt")
     log_save_path = train_hypers['log_save_path']
-    # os.makedirs(log_save_path, exist_ok=False)
 
     SemKITTI_label_name = get_SemKITTI_label_name(dataset_config["label_mapping"])
     unique_label = np.asarray(sorted(list(SemKITTI_label_name.keys())))[1:] - 1
@@ -61,8 +62,20 @@ def main(args):
 
     my_model = model_builder.build(model_config)
     if os.path.exists(model_load_path):
+        print("load data from {}".format(model_load_path))
         my_model = load_checkpoint(model_load_path, my_model)
-
+    
+    # add new weather clf module
+    for name, param in my_model.named_parameters():
+        if "weather" in name:
+            print("{} will be trained".format(name))
+            param.requires_grad = True
+        else:
+            param.requires_grad = False
+        # print("name : ", name)
+        # print("requires_grad : ", param.requires_grad)
+        # print()
+        
     my_model.to(pytorch_device)
     optimizer = optim.Adam(my_model.parameters(), lr=train_hypers["learning_rate"])
 
@@ -74,6 +87,14 @@ def main(args):
                                                                   val_dataloader_config,
                                                                   grid_size=grid_size)
 
+    # remove model weather clf parameters
+    # del my_model.weather_clf
+    
+    # freeze pretrained model
+
+        
+    # add new weather clf module
+    
     # training
     epoch = 0
     best_val_miou = 0
@@ -81,6 +102,9 @@ def main(args):
     global_iter = 0
     check_iter = train_hypers['eval_every_n_steps']
     print("Model will save in : {}".format(model_save_path))
+    
+    
+    
     while epoch < train_hypers['max_num_epochs']:
         loss_list = []
         pbar = tqdm(total=len(train_dataset_loader))
@@ -99,11 +123,8 @@ def main(args):
             softmax_weathers = torch.softmax(weathers, dim=1)
             max_weathers = torch.argmax(softmax_weathers, dim=1)
             
-            loss = lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0) + loss_func(
-                outputs, point_label_tensor) + clf_loss_func(weathers, weather_gt)
+            loss = lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0) + loss_func(outputs, point_label_tensor) + clf_loss_func(weathers, weather_gt)
             print("===================")
-            print("pcss loss : ", lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0))
-            print("ce loss : ", loss_func(outputs, point_label_tensor))
             print(max_weathers, weather_gt, clf_loss_func(weathers, weather_gt))
             loss.backward()
             optimizer.step()
@@ -150,7 +171,7 @@ def main(args):
 
                 # aux_loss = loss_fun(aux_outputs, point_label_tensor)
                 loss = lovasz_softmax(torch.nn.functional.softmax(predict_labels).detach(), val_label_tensor,
-                                        ignore=0) + loss_func(predict_labels.detach(), val_label_tensor) + clf_loss_func(predict_weathers, weather_gt)
+                                        ignore=0) + loss_func(predict_labels.detach(), val_label_tensor)
                 predict_labels = torch.argmax(predict_labels, dim=1)
                 predict_labels = predict_labels.cpu().detach().numpy()
 
@@ -172,14 +193,14 @@ def main(args):
         accuracy = correct / total
 
         msg = "weather accuracy: {}".format(accuracy) 
-        save_to_log(log_save_path, "log.txt", msg)
+        save_to_log(log_save_path, "log_partial.txt", msg)
         
         iou = per_class_iu(sum(hist_list))
         msg = 'Validation per class iou: '
-        save_to_log(log_save_path, "log.txt", msg)
+        save_to_log(log_save_path, "log_partial.txt", msg)
         for class_name, class_iou in zip(unique_label_str, iou):
             msg = '%s : %.2f%%' % (class_name, class_iou * 100)
-            save_to_log(log_save_path, "log.txt", msg)
+            save_to_log(log_save_path, "log_partial.txt", msg)
         val_miou = np.nanmean(iou) * 100
         del val_vox_label, val_grid, val_pt_fea, val_grid_ten
 
@@ -189,12 +210,13 @@ def main(args):
             torch.save(my_model.state_dict(), model_save_path)
 
         msg = 'Current val miou is %.3f while the best val miou is %.3f' % (val_miou, best_val_miou)
-        save_to_log(log_save_path, "log.txt", msg)
+        save_to_log(log_save_path, "log_partial.txt", msg)
         msg = 'Current val loss is %.3f' %(np.mean(val_loss_list))
-        save_to_log(log_save_path, "log.txt", msg)
+        save_to_log(log_save_path, "log_partial.txt", msg)
         
         pbar.close()
         epoch += 1
+
 
 if __name__ == '__main__':
     # Training settings
