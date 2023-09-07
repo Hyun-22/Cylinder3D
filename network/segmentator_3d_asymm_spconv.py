@@ -231,7 +231,7 @@ class UpBlock(nn.Module):
         return upE
     
 # https://github.com/traveller59/spconv/issues/519
-class SparseGlobalMaxPool(spconv.SparseModule):
+class SparseGlobalMaxPool_OLD(spconv.SparseModule):
     def forward(self, input):
         assert isinstance(input, spconv.SparseConvTensor)
         features = input.features
@@ -254,6 +254,62 @@ class SparseGlobalMaxPool(spconv.SparseModule):
         out_tensor.grid = input.grid
         return out_tensor
     
+class SparseGlobalAvgPool(spconv.SparseModule):
+    def forward(self, input):
+        assert isinstance(input, spconv.SparseConvTensor)
+        features = input.features
+        device = features.device
+        indices = input.indices
+        spatial_shape = input.spatial_shape
+        batch_size = input.batch_size
+        ndim = len(spatial_shape)
+        ksize = spatial_shape
+        _, out_feat = features.shape
+        
+        return_feat = torch.zeros((0, out_feat)).to(device)
+        
+        _, cnt = torch.unique(indices[:, 0], return_counts=True)
+        feature_len = 0
+        prev_feature_len = 0
+        
+        for batch in range(batch_size):
+            feature_len += cnt[batch]
+            single_batch_feature = features[prev_feature_len:feature_len,:]
+            prev_feature_len += cnt[batch]
+            mean_feature = torch.mean(single_batch_feature, dim=0)
+            mean_feature = mean_feature.unsqueeze(0)
+            return_feat = torch.cat((return_feat, mean_feature), dim=0)
+        
+        return return_feat
+
+class SparseGlobalMaxPool(spconv.SparseModule):
+    def forward(self, input):
+        assert isinstance(input, spconv.SparseConvTensor)
+        features = input.features
+        device = features.device
+        indices = input.indices
+        spatial_shape = input.spatial_shape
+        batch_size = input.batch_size
+        ndim = len(spatial_shape)
+        ksize = spatial_shape
+        _, out_feat = features.shape
+        
+        return_feat = torch.zeros((0, out_feat)).to(device)
+        
+        _, cnt = torch.unique(indices[:, 0], return_counts=True)
+        feature_len = 0
+        prev_feature_len = 0
+        
+        for batch in range(batch_size):
+            feature_len += cnt[batch]
+            single_batch_feature = features[prev_feature_len:feature_len,:]
+            prev_feature_len += cnt[batch]
+            max_feature = torch.max(single_batch_feature, dim=0)
+            max_feature = max_feature.unsqueeze(0)
+            return_feat = torch.cat((return_feat, max_feature), dim=0)
+        
+        return return_feat
+            
 class ReconBlock(nn.Module):
     def __init__(self, in_filters, out_filters, kernel_size=(3, 3, 3), stride=1, indice_key=None):
         super(ReconBlock, self).__init__()
@@ -1085,18 +1141,19 @@ class Asymm_3d_spconv_clf_test(nn.Module):
         
         # 512 -> 256
         # init_size = 16
-        self.weather_logits = spconv.SubMConv3d(4 * init_size, 64, indice_key="weather_logit", kernel_size=3, stride=1, padding=1,bias=True)
+        self.weather_logits = spconv.SubMConv3d(16 * init_size, 256, indice_key="weather_logit", kernel_size=3, stride=1, padding=1,bias=True)
         self.weather_max_pool = SparseGlobalMaxPool()
+        self.weather_avg_pool = SparseGlobalAvgPool()
         # 256 -> 128
-        self.weather_fc1 = nn.Linear(64, 32)
+        self.weather_fc1 = nn.Linear(256, 128)
         self.relu1 = nn.LeakyReLU()
-        self.bn1 = nn.BatchNorm1d(32)
+        self.bn1 = nn.BatchNorm1d(128)
         # 128 -> 64
-        self.weather_fc2 = nn.Linear(32,16)
+        self.weather_fc2 = nn.Linear(128,64)
         self.relu2 = nn.LeakyReLU()
-        self.bn2 = nn.BatchNorm1d(16)
+        self.bn2 = nn.BatchNorm1d(64)
         # 128 -> 64
-        self.weather_fc3 = nn.Linear(16,3)
+        self.weather_fc3 = nn.Linear(64,3)
         
         self.weight_initialization()
 
@@ -1113,49 +1170,32 @@ class Asymm_3d_spconv_clf_test(nn.Module):
         # pdb.set_trace()
         ret = spconv.SparseConvTensor(voxel_features, coors, self.sparse_shape,
                                       batch_size)
-        
-        # input : m, 16
-        # input dense : b,16,480,360,32
-        # output : m, 32
-        # input dense : b,32,480,360,32
         ret = self.downCntx(ret)
-        
-        # down1c : m, 64 (height pooling), # down1b : n, 64 (no pooling)
-        # down1c dense : b,64,240,180,16
-        # down1b dense : b,64,480,360,32
+        # down1c : m, 64
         down1c, down1b = self.resBlock2(ret)
-        
-        # down2c : m, 128(height pooling), # down1b : n, 128 (no pooling)
-        # down2c dense : b,128,120,90,8
-        # down2b dense : b,128,240,180,16
+        # down2c : m, 128
         down2c, down2b = self.resBlock3(down1c)
-        
-        # down3c : m, 256(height pooling), # down1b : n, 256 (no pooling)
-        # down3c dense : b,256,60,45,8
-        # down3b dense : b,256,120,90,8
+        # down3c : m, 256
         down3c, down3b = self.resBlock4(down2c)
-        
-        # down4c : m, 512(height pooling), # down1b : n, 512 (no pooling)
-        # down4c dense : b,512,30,23,8 
-        # down4b dense : b,512,60,45,8
+        # down4c : m, 512
         down4c, down4b = self.resBlock5(down3c)
         
+        weather_feat1 = self.weather_logits(down4c)
+        # weather_feat2 = self.weather_max_pool(weather_feat1)
+        weather_feat2 = self.weather_avg_pool(weather_feat1)
+        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2)))
+        weather_feat4 = self.bn2(self.relu2(self.weather_fc2(weather_feat3)))
+        weather_result = self.weather_fc3(weather_feat4)
         
         up4e = self.upBlock0(down4c, down4b)
         up3e = self.upBlock1(up4e, down3b)
         up2e = self.upBlock2(up3e, down2b)
         up1e = self.upBlock3(up2e, down1b)
 
-        weather_feat1 = self.weather_logits(up3e)
-        weather_feat2 = self.weather_max_pool(weather_feat1)
-        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2.features)))
-        weather_feat4 = self.bn2(self.relu2(self.weather_fc2(weather_feat3)))
-        weather_result = self.weather_fc3(weather_feat4)
-        
         up0e = self.ReconNet(up1e)
 
         up0e = up0e.replace_feature(torch.cat((up0e.features, up1e.features), 1))
 
         logits = self.logits(up0e)
         y = logits.dense()
-        return y, weather_result  
+        return y, weather_result 
