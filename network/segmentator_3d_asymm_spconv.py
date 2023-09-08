@@ -824,7 +824,6 @@ class Asymm_3d_spconv_clf_v5(nn.Module):
         y = logits.dense()
         return y, weather_result    
 
-# OUT OF MEMORY
 class Asymm_3d_spconv_clf_v6(nn.Module):
     def __init__(self,
                  output_shape,
@@ -1323,6 +1322,321 @@ class Asymm_3d_spconv_clf_v10(nn.Module):
         y = logits.dense()
         return y, weather_result        
     
+class Asymm_3d_spconv_clf_v11(nn.Module):
+    def __init__(self,
+                 output_shape,
+                 use_norm=True,
+                 num_input_features=128,
+                 nclasses=20, n_height=32, strict=False, init_size=16):
+        super(Asymm_3d_spconv_clf_v9, self).__init__()
+        self.nclasses = nclasses
+        self.nheight = n_height
+        self.strict = False
+
+        sparse_shape = np.array(output_shape)
+        # sparse_shape[0] = 11
+        print(sparse_shape)
+        self.sparse_shape = sparse_shape
+
+        self.downCntx = ResContextBlock(num_input_features, init_size, indice_key="pre")
+        self.resBlock2 = ResBlock(init_size, 2 * init_size, 0.2, height_pooling=True, indice_key="down2")
+        self.resBlock3 = ResBlock(2 * init_size, 4 * init_size, 0.2, height_pooling=True, indice_key="down3")
+        self.resBlock4 = ResBlock(4 * init_size, 8 * init_size, 0.2, pooling=True, height_pooling=False,
+                                  indice_key="down4")
+        self.resBlock5 = ResBlock(8 * init_size, 16 * init_size, 0.2, pooling=True, height_pooling=False,
+                                  indice_key="down5")
+
+        self.upBlock0 = UpBlock(16 * init_size, 16 * init_size, indice_key="up0", up_key="down5")
+        self.upBlock1 = UpBlock(16 * init_size, 8 * init_size, indice_key="up1", up_key="down4")
+        self.upBlock2 = UpBlock(8 * init_size, 4 * init_size, indice_key="up2", up_key="down3")
+        self.upBlock3 = UpBlock(4 * init_size, 2 * init_size, indice_key="up3", up_key="down2")
+
+        self.ReconNet = ReconBlock(2 * init_size, 2 * init_size, indice_key="recon")
+
+        self.logits = spconv.SubMConv3d(4 * init_size, nclasses, indice_key="logit", kernel_size=3, stride=1, padding=1,
+                                        bias=True)
+        
+        '''
+        Weather Clf Net
+        '''
+        # init_size = 32
+        in_channel = 16 * init_size
+        self.weather_logits = spconv.SubMConv3d(in_channel, int(in_channel/2), indice_key="weather_logit", kernel_size=3, stride=1, padding=1,bias=True)
+        self.sp_relu1 = nn.ReLU()
+        self.sp_bn1 = nn.BatchNorm1d(int(in_channel/2))
+        self.weather_avg_pool = SparseGlobalAvgPool()
+        # 256 -> 128
+        self.weather_fc1 = nn.Linear(int(in_channel/2), int(in_channel/4))
+        self.relu1 = nn.ReLU()
+        self.bn1 = nn.BatchNorm1d(int(in_channel/4))
+        # 128 -> 64
+        self.weather_fc2 = nn.Linear(int(in_channel/4), int(in_channel/8))
+        self.relu2 = nn.ReLU()
+        self.bn2 = nn.BatchNorm1d(int(in_channel/8))
+        # 128 -> 64
+        self.weather_fc3 = nn.Linear(int(in_channel/8), 3)
+        
+        self.weight_initialization()
+
+    def weight_initialization(self):
+        for m in self.modules():
+            if isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, voxel_features, coors, batch_size):
+        # x = x.contiguous()
+        coors = coors.int()
+        # import pdb
+        # pdb.set_trace()
+        ret = spconv.SparseConvTensor(voxel_features, coors, self.sparse_shape,
+                                      batch_size)
+        ret = self.downCntx(ret)
+        # down1c : m, 64
+        down1c, down1b = self.resBlock2(ret)
+        # down2c : m, 128
+        down2c, down2b = self.resBlock3(down1c)
+        # down3c : m, 256
+        down3c, down3b = self.resBlock4(down2c)
+        # down4c : m, 512
+        down4c, down4b = self.resBlock5(down3c)
+        
+        weather_feat1 = self.weather_logits(down4c)
+        weather_feat1 = weather_feat1.replace_feature(self.sp_relu1(weather_feat1.features))
+        weather_feat1 = weather_feat1.replace_feature(self.sp_bn1(weather_feat1.features))
+        
+        weather_feat2 = self.weather_avg_pool(weather_feat1)
+        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2)))
+        weather_feat4 = self.bn2(self.relu2(self.weather_fc2(weather_feat3)))
+        weather_result = self.weather_fc3(weather_feat4)        
+        
+        up4e = self.upBlock0(down4c, down4b)
+        up3e = self.upBlock1(up4e, down3b)
+        up2e = self.upBlock2(up3e, down2b)
+        up1e = self.upBlock3(up2e, down1b)
+
+        up0e = self.ReconNet(up1e)
+
+        up0e = up0e.replace_feature(torch.cat((up0e.features, up1e.features), 1))
+
+        logits = self.logits(up0e)
+        y = logits.dense()
+        return y, weather_result
+
+class Asymm_3d_spconv_clf_v12(nn.Module):
+    def __init__(self,
+                 output_shape,
+                 use_norm=True,
+                 num_input_features=128,
+                 nclasses=20, n_height=32, strict=False, init_size=16):
+        super(Asymm_3d_spconv_clf_v9, self).__init__()
+        self.nclasses = nclasses
+        self.nheight = n_height
+        self.strict = False
+
+        sparse_shape = np.array(output_shape)
+        # sparse_shape[0] = 11
+        print(sparse_shape)
+        self.sparse_shape = sparse_shape
+
+        self.downCntx = ResContextBlock(num_input_features, init_size, indice_key="pre")
+        self.resBlock2 = ResBlock(init_size, 2 * init_size, 0.2, height_pooling=True, indice_key="down2")
+        self.resBlock3 = ResBlock(2 * init_size, 4 * init_size, 0.2, height_pooling=True, indice_key="down3")
+        self.resBlock4 = ResBlock(4 * init_size, 8 * init_size, 0.2, pooling=True, height_pooling=False,
+                                  indice_key="down4")
+        self.resBlock5 = ResBlock(8 * init_size, 16 * init_size, 0.2, pooling=True, height_pooling=False,
+                                  indice_key="down5")
+
+        self.upBlock0 = UpBlock(16 * init_size, 16 * init_size, indice_key="up0", up_key="down5")
+        self.upBlock1 = UpBlock(16 * init_size, 8 * init_size, indice_key="up1", up_key="down4")
+        self.upBlock2 = UpBlock(8 * init_size, 4 * init_size, indice_key="up2", up_key="down3")
+        self.upBlock3 = UpBlock(4 * init_size, 2 * init_size, indice_key="up3", up_key="down2")
+
+        self.ReconNet = ReconBlock(2 * init_size, 2 * init_size, indice_key="recon")
+
+        self.logits = spconv.SubMConv3d(4 * init_size, nclasses, indice_key="logit", kernel_size=3, stride=1, padding=1,
+                                        bias=True)
+        
+        '''
+        Weather Clf Net
+        '''
+        # init_size = 32
+        in_channel = 16 * init_size
+        self.weather_logits = spconv.SubMConv3d(in_channel, int(in_channel/2), indice_key="weather_logit", kernel_size=3, stride=1, padding=1,bias=True)
+        self.sp_relu1 = nn.LeakyReLU()
+        self.sp_bn1 = nn.BatchNorm1d(int(in_channel/2))
+        self.weather_avg_pool = SparseGlobalAvgPool()
+        # 256 -> 128
+        self.weather_fc1 = nn.Linear(int(in_channel/2), int(in_channel/4))
+        self.relu1 = nn.LeakyReLU()
+        self.bn1 = nn.BatchNorm1d(int(in_channel/4))
+        # 128 -> 64
+        self.weather_fc2 = nn.Linear(int(in_channel/4), int(in_channel/8))
+        self.relu2 = nn.LeakyReLU()
+        self.bn2 = nn.BatchNorm1d(int(in_channel/8))
+        # 128 -> 64
+        self.weather_fc3 = nn.Linear(int(in_channel/8), 3)
+        
+        self.weight_initialization()
+
+    def weight_initialization(self):
+        for m in self.modules():
+            if isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, voxel_features, coors, batch_size):
+        # x = x.contiguous()
+        coors = coors.int()
+        # import pdb
+        # pdb.set_trace()
+        ret = spconv.SparseConvTensor(voxel_features, coors, self.sparse_shape,
+                                      batch_size)
+        ret = self.downCntx(ret)
+        # down1c : m, 64
+        down1c, down1b = self.resBlock2(ret)
+        # down2c : m, 128
+        down2c, down2b = self.resBlock3(down1c)
+        # down3c : m, 256
+        down3c, down3b = self.resBlock4(down2c)
+        # down4c : m, 512
+        down4c, down4b = self.resBlock5(down3c)
+        
+        weather_feat1 = self.weather_logits(down4c)
+        weather_feat1 = weather_feat1.replace_feature(self.sp_relu1(weather_feat1.features))
+        weather_feat1 = weather_feat1.replace_feature(self.sp_bn1(weather_feat1.features))
+        
+        weather_feat2 = self.weather_avg_pool(weather_feat1)
+        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2)))
+        
+        # weather_feat : 2,3 residual
+        weather_feat3 = weather_feat3 + weather_feat2
+        
+        weather_feat4 = self.bn2(self.relu2(self.weather_fc2(weather_feat3)))
+        # weather_feat : 3,4 residual
+        weather_feat4 = weather_feat4 + weather_feat3
+        weather_result = self.weather_fc3(weather_feat4)        
+        
+        up4e = self.upBlock0(down4c, down4b)
+        up3e = self.upBlock1(up4e, down3b)
+        up2e = self.upBlock2(up3e, down2b)
+        up1e = self.upBlock3(up2e, down1b)
+
+        up0e = self.ReconNet(up1e)
+
+        up0e = up0e.replace_feature(torch.cat((up0e.features, up1e.features), 1))
+
+        logits = self.logits(up0e)
+        y = logits.dense()
+        return y, weather_result    
+
+class Asymm_3d_spconv_clf_v13(nn.Module):
+    def __init__(self,
+                 output_shape,
+                 use_norm=True,
+                 num_input_features=128,
+                 nclasses=20, n_height=32, strict=False, init_size=16):
+        super(Asymm_3d_spconv_clf_v9, self).__init__()
+        self.nclasses = nclasses
+        self.nheight = n_height
+        self.strict = False
+
+        sparse_shape = np.array(output_shape)
+        # sparse_shape[0] = 11
+        print(sparse_shape)
+        self.sparse_shape = sparse_shape
+
+        self.downCntx = ResContextBlock(num_input_features, init_size, indice_key="pre")
+        self.resBlock2 = ResBlock(init_size, 2 * init_size, 0.2, height_pooling=True, indice_key="down2")
+        self.resBlock3 = ResBlock(2 * init_size, 4 * init_size, 0.2, height_pooling=True, indice_key="down3")
+        self.resBlock4 = ResBlock(4 * init_size, 8 * init_size, 0.2, pooling=True, height_pooling=False,
+                                  indice_key="down4")
+        self.resBlock5 = ResBlock(8 * init_size, 16 * init_size, 0.2, pooling=True, height_pooling=False,
+                                  indice_key="down5")
+
+        self.upBlock0 = UpBlock(16 * init_size, 16 * init_size, indice_key="up0", up_key="down5")
+        self.upBlock1 = UpBlock(16 * init_size, 8 * init_size, indice_key="up1", up_key="down4")
+        self.upBlock2 = UpBlock(8 * init_size, 4 * init_size, indice_key="up2", up_key="down3")
+        self.upBlock3 = UpBlock(4 * init_size, 2 * init_size, indice_key="up3", up_key="down2")
+
+        self.ReconNet = ReconBlock(2 * init_size, 2 * init_size, indice_key="recon")
+
+        self.logits = spconv.SubMConv3d(4 * init_size, nclasses, indice_key="logit", kernel_size=3, stride=1, padding=1,
+                                        bias=True)
+        
+        '''
+        Weather Clf Net
+        '''
+        # init_size = 32
+        in_channel = 16 * init_size
+        self.weather_logits = spconv.SubMConv3d(in_channel, int(in_channel/2), indice_key="weather_logit", kernel_size=3, stride=1, padding=1,bias=True)
+        self.sp_relu1 = nn.ReLU()
+        self.sp_bn1 = nn.BatchNorm1d(int(in_channel/2))
+        self.weather_avg_pool = SparseGlobalAvgPool()
+        # 256 -> 128
+        self.weather_fc1 = nn.Linear(int(in_channel/2), int(in_channel/4))
+        self.relu1 = nn.ReLU()
+        self.bn1 = nn.BatchNorm1d(int(in_channel/4))
+        # 128 -> 64
+        self.weather_fc2 = nn.Linear(int(in_channel/4), int(in_channel/8))
+        self.relu2 = nn.ReLU()
+        self.bn2 = nn.BatchNorm1d(int(in_channel/8))
+        # 128 -> 64
+        self.weather_fc3 = nn.Linear(int(in_channel/8), 3)
+        
+        self.weight_initialization()
+
+    def weight_initialization(self):
+        for m in self.modules():
+            if isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, voxel_features, coors, batch_size):
+        # x = x.contiguous()
+        coors = coors.int()
+        # import pdb
+        # pdb.set_trace()
+        ret = spconv.SparseConvTensor(voxel_features, coors, self.sparse_shape,
+                                      batch_size)
+        ret = self.downCntx(ret)
+        # down1c : m, 64
+        down1c, down1b = self.resBlock2(ret)
+        # down2c : m, 128
+        down2c, down2b = self.resBlock3(down1c)
+        # down3c : m, 256
+        down3c, down3b = self.resBlock4(down2c)
+        # down4c : m, 512
+        down4c, down4b = self.resBlock5(down3c)
+        
+        weather_feat1 = self.weather_logits(down4c)
+        weather_feat1 = weather_feat1.replace_feature(self.sp_relu1(weather_feat1.features))
+        weather_feat1 = weather_feat1.replace_feature(self.sp_bn1(weather_feat1.features))
+        
+        weather_feat2 = self.weather_avg_pool(weather_feat1)
+        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2)))
+        
+        # weather_feat : 2,3 residual
+        weather_feat3 = weather_feat3 + weather_feat2
+        
+        weather_feat4 = self.bn2(self.relu2(self.weather_fc2(weather_feat3)))
+        # weather_feat : 3,4 residual
+        weather_feat4 = weather_feat4 + weather_feat3
+        weather_result = self.weather_fc3(weather_feat4)        
+        
+        up4e = self.upBlock0(down4c, down4b)
+        up3e = self.upBlock1(up4e, down3b)
+        up2e = self.upBlock2(up3e, down2b)
+        up1e = self.upBlock3(up2e, down1b)
+
+        up0e = self.ReconNet(up1e)
+
+        up0e = up0e.replace_feature(torch.cat((up0e.features, up1e.features), 1))
+
+        logits = self.logits(up0e)
+        y = logits.dense()
+        return y, weather_result    
+        
 class Asymm_3d_spconv_clf_test(nn.Module):
     def __init__(self,
                  output_shape,

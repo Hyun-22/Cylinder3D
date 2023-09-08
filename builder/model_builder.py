@@ -113,7 +113,34 @@ def build(model_config):
             use_norm=use_norm,
             num_input_features=num_input_features,
             init_size=init_size,
+            nclasses=num_class) 
+    elif model_config['model_architecture'] == 'cylinder_asym_clf_v11':
+        from network.segmentator_3d_asymm_spconv import Asymm_3d_spconv_clf_v11
+        print('using cylinder_asym_clf_v11')
+        cylinder_3d_spconv_seg = Asymm_3d_spconv_clf_v11(
+            output_shape=output_shape,
+            use_norm=use_norm,
+            num_input_features=num_input_features,
+            init_size=init_size,
             nclasses=num_class)   
+    elif model_config['model_architecture'] == 'cylinder_asym_clf_v12':
+        from network.segmentator_3d_asymm_spconv import Asymm_3d_spconv_clf_v12
+        print('using cylinder_asym_clf_v12')
+        cylinder_3d_spconv_seg = Asymm_3d_spconv_clf_v12(
+            output_shape=output_shape,
+            use_norm=use_norm,
+            num_input_features=num_input_features,
+            init_size=init_size,
+            nclasses=num_class)                     
+    elif model_config['model_architecture'] == 'cylinder_asym_clf_v13':
+        from network.segmentator_3d_asymm_spconv import Asymm_3d_spconv_clf_v13
+        print('using cylinder_asym_clf_v13')
+        cylinder_3d_spconv_seg = Asymm_3d_spconv_clf_v13(
+            output_shape=output_shape,
+            use_norm=use_norm,
+            num_input_features=num_input_features,
+            init_size=init_size,
+            nclasses=num_class)           
     else:
         print("using original cylinder_asym")
         cylinder_3d_spconv_seg = Asymm_3d_spconv(
