@@ -18,6 +18,7 @@ from builder import data_builder, model_builder, loss_builder
 from config.config import load_config_data
 
 from utils.load_save_util import load_checkpoint
+import matplotlib.pyplot as plt
 
 import warnings
 
@@ -81,12 +82,33 @@ def main(args):
     global_iter = 0
     check_iter = train_hypers['eval_every_n_steps']
     print("Model will save in : {}".format(model_save_path))
+    
+    '''
+    Performace measure
+    '''
+    train_total_loss_list = []
+    train_total_pcss_loss_list = []
+    train_total_acc_loss_list = []
+    train_total_miou_list = []
+    train_total_acc_list = []
+    
+    valid_total_loss_list = []
+    valid_total_pcss_loss_list = []
+    valid_total_acc_loss_list = []
+    valid_total_miou_list = []
+    valid_total_acc_list = []
+    
     while epoch < train_hypers['max_num_epochs']:
-        loss_list = []
         pbar = tqdm(total=len(train_dataset_loader))
-        time.sleep(3)
-        # lr_scheduler.step(epoch)
-        for i_iter, (_, train_vox_label, train_grid, _, train_pt_fea, weather_gt) in enumerate(train_dataset_loader):
+        time.sleep(1)
+        
+        train_hist_list = []
+        train_loss_list = []
+        train_pcss_loss_list = []
+        train_acc_loss_list = []
+        train_weather_pred_list = []
+        train_weather_gt_list = []
+        for i_iter, (_, train_vox_label, train_grid, train_pt_labs, train_pt_fea, weather_gt) in enumerate(train_dataset_loader):
             train_pt_fea_ten = [torch.from_numpy(i).type(torch.FloatTensor).to(pytorch_device) for i in train_pt_fea]
             # train_grid_ten = [torch.from_numpy(i[:,:2]).to(pytorch_device) for i in train_grid]
             train_vox_ten = [torch.from_numpy(i).to(pytorch_device) for i in train_grid]
@@ -99,39 +121,63 @@ def main(args):
             softmax_weathers = torch.softmax(weathers, dim=1)
             max_weathers = torch.argmax(softmax_weathers, dim=1)
             
-            loss = lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0) + loss_func(
-                outputs, point_label_tensor) + clf_loss_func(weathers, weather_gt)
+            pcss_loss = lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0) + loss_func(outputs, point_label_tensor) 
+            weather_loss = clf_loss_func(weathers, weather_gt)
+            loss = pcss_loss + weather_loss
+            
+            predict_outputs = torch.argmax(outputs, dim=1)
+            predict_outputs = predict_outputs.cpu().detach().numpy()
+            
+            train_pcss_loss_list.append(pcss_loss.item())
+            train_acc_loss_list.append(weather_loss.item())
+            train_loss_list.append(loss.item())
+            
+            # train_weather_pred_list.append(max_weathers.item())
+            # train_weather_gt_list.append(weather_gt.item())
+            train_weather_pred_list += list(max_weathers.detach().cpu().numpy())
+            train_weather_gt_list += list(weather_gt.detach().cpu().numpy())
             print("===================")
-            print("pcss loss : ", lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0))
-            print("ce loss : ", loss_func(outputs, point_label_tensor))
+            print("pcss loss : ", pcss_loss)
             print("weather prob : ", softmax_weathers)
-            print(max_weathers, weather_gt, clf_loss_func(weathers, weather_gt))
+            print(max_weathers, weather_gt, weather_loss.item())
+            
             loss.backward()
             optimizer.step()
-            loss_list.append(loss.item())
-
-            if global_iter % 1000 == 0:
-                if len(loss_list) > 0:
-                    print('epoch %d iter %5d, loss: %.3f\n' %
-                          (epoch, i_iter, np.mean(loss_list)))
-                else:
-                    print('loss error')
-
             optimizer.zero_grad()
             pbar.update(1)
             global_iter += 1
-            if global_iter % check_iter == 0:
-                if len(loss_list) > 0:
+            
+            for count, i_train_grid in enumerate(train_grid):
+                train_hist_list.append(fast_hist_crop(predict_outputs[
+                                                count, train_grid[count][:, 0], train_grid[count][:, 1],
+                                                train_grid[count][:, 2]], train_pt_labs[count],
+                                            unique_label))
+                    
+            if global_iter % 1000 == 0:
+                if len(train_loss_list) > 0:
                     print('epoch %d iter %5d, loss: %.3f\n' %
-                          (epoch, i_iter, np.mean(loss_list)))
+                          (epoch, i_iter, np.mean(train_loss_list)))
                 else:
                     print('loss error')
-        # validation
+
+            if global_iter % check_iter == 0:
+                if len(train_loss_list) > 0:
+                    print('epoch %d iter %5d, loss: %.3f\n' %
+                          (epoch, i_iter, np.mean(train_loss_list)))
+                else:
+                    print('loss error')
+        
+        
+        '''
+        # validation Phase
+        '''
         my_model.eval()
-        hist_list = []
-        val_loss_list = []
-        weather_pred_list = []
-        weather_gt_list = []
+        valid_hist_list = []
+        valid_loss_list = []
+        valid_pcss_loss_list = []
+        valid_acc_loss_list = []
+        valid_weather_pred_list = []
+        valid_weather_gt_list = []
         # validation
         with torch.no_grad():
             for i_iter_val, (_, val_vox_label, val_grid, val_pt_labs, val_pt_fea, weather_gt) in enumerate(
@@ -150,40 +196,78 @@ def main(args):
                 max_weathers = torch.argmax(softmax_weathers, dim=1)
 
                 # aux_loss = loss_fun(aux_outputs, point_label_tensor)
-                loss = lovasz_softmax(torch.nn.functional.softmax(predict_labels).detach(), val_label_tensor,
-                                        ignore=0) + loss_func(predict_labels.detach(), val_label_tensor) + clf_loss_func(predict_weathers, weather_gt)
+                pcss_loss = lovasz_softmax(torch.nn.functional.softmax(predict_labels), val_label_tensor, ignore=0) + loss_func(predict_labels, val_label_tensor) 
+                weather_loss = clf_loss_func(predict_weathers, weather_gt)
+                loss = pcss_loss + weather_loss
+                
                 predict_labels = torch.argmax(predict_labels, dim=1)
                 predict_labels = predict_labels.cpu().detach().numpy()
 
-                weather_pred_list.append(max_weathers.item())
-                weather_gt_list.append(weather_gt.item())
+                valid_weather_pred_list.append(max_weathers.item())
+                valid_weather_gt_list.append(weather_gt.item())
                 print("===================")
-                print(max_weathers, weather_gt, clf_loss_func(predict_weathers, weather_gt))
+                print(max_weathers, weather_gt, weather_loss.item())
+                
+                valid_pcss_loss_list.append(pcss_loss.item())
+                valid_acc_loss_list.append(weather_loss.item())
+                valid_loss_list.append(loss.item())
                 for count, i_val_grid in enumerate(val_grid):
-                    hist_list.append(fast_hist_crop(predict_labels[
-                                                        count, val_grid[count][:, 0], val_grid[count][:, 1],
-                                                        val_grid[count][:, 2]], val_pt_labs[count],
-                                                    unique_label))
-                val_loss_list.append(loss.detach().cpu().numpy())
+                    valid_hist_list.append(fast_hist_crop(predict_labels[count, val_grid[count][:, 0], val_grid[count][:, 1],val_grid[count][:, 2]], val_pt_labs[count], unique_label))
+                valid_loss_list.append(loss.detach().cpu().numpy())
+        '''
+        After one epoch
+        '''
         my_model.train()
-        weather_pred_arr = np.array(weather_pred_list)
-        weather_gt_arr = np.array(weather_gt_list)
-        correct = np.sum(weather_pred_arr == weather_gt_arr)
-        total = len(weather_gt_arr)
+        # save train weather accuracy
+        train_weather_pred_arr = np.array(train_weather_pred_list)
+        train_weather_gt_arr = np.array(train_weather_gt_list)
+        correct = np.sum(train_weather_pred_arr == train_weather_gt_arr)
+        total = len(train_weather_gt_arr)
         accuracy = correct / total
-
-        msg = "weather accuracy: {}".format(accuracy) 
+        
+        train_total_acc_list.append(accuracy)
+        msg = "train weather accuracy: {}".format(accuracy)
         save_to_log(log_save_path, "log.txt", msg)
         
-        iou = per_class_iu(sum(hist_list))
+        # save valid weather accuracy
+        valid_weather_pred_arr = np.array(valid_weather_pred_list)
+        valid_weather_gt_arr = np.array(valid_weather_gt_list)
+        correct = np.sum(valid_weather_pred_arr == valid_weather_gt_arr)
+        total = len(valid_weather_gt_arr)
+        accuracy = correct / total
+        
+        valid_total_acc_list.append(accuracy)
+        msg = "valid weather accuracy: {}".format(accuracy) 
+        save_to_log(log_save_path, "log.txt", msg)
+        
+        # save train mIOU
+        iou = per_class_iu(sum(train_hist_list))
+        msg = 'Training per class iou: '
+        save_to_log(log_save_path, "log.txt", msg)
+        for class_name, class_iou in zip(unique_label_str, iou):
+            msg = '%s : %.2f%%' % (class_name, class_iou * 100)
+            save_to_log(log_save_path, "log.txt", msg)
+        train_miou = np.nanmean(iou) * 100
+        train_total_miou_list.append(train_miou)
+        
+        # save valid mIOU
+        iou = per_class_iu(sum(valid_hist_list))
         msg = 'Validation per class iou: '
         save_to_log(log_save_path, "log.txt", msg)
         for class_name, class_iou in zip(unique_label_str, iou):
             msg = '%s : %.2f%%' % (class_name, class_iou * 100)
             save_to_log(log_save_path, "log.txt", msg)
         val_miou = np.nanmean(iou) * 100
-        del val_vox_label, val_grid, val_pt_fea, val_grid_ten
-
+        valid_total_miou_list.append(val_miou)
+        
+        train_total_loss_list.append(np.mean(train_loss_list))
+        train_total_pcss_loss_list.append(np.mean(train_pcss_loss_list))
+        train_total_acc_loss_list.append(np.mean(train_acc_loss_list))
+        
+        valid_total_loss_list.append(np.mean(valid_loss_list))
+        valid_total_pcss_loss_list.append(np.mean(valid_pcss_loss_list))
+        valid_total_acc_loss_list.append(np.mean(valid_acc_loss_list))
+        
         # save model if performance is improved
         if best_val_miou < val_miou:
             best_val_miou = val_miou
@@ -191,12 +275,55 @@ def main(args):
 
         msg = 'Current val miou is %.3f while the best val miou is %.3f' % (val_miou, best_val_miou)
         save_to_log(log_save_path, "log.txt", msg)
-        msg = 'Current val loss is %.3f' %(np.mean(val_loss_list))
+        msg = 'Current val loss is %.3f' %(np.mean(valid_loss_list))
         save_to_log(log_save_path, "log.txt", msg)
         
         pbar.close()
         epoch += 1
-
+        
+        del val_vox_label, val_grid, val_pt_fea, val_grid_ten
+    '''
+    After end of training
+    '''
+    
+    # draw total loss (train vs valid)
+    plt.figure(figsize=(15, 5))
+    plt.subplot(1, 3, 1)
+    plt.title("Total loss")
+    plt.plot(train_total_loss_list, label='train')
+    plt.plot(valid_total_loss_list, label='valid')
+    
+    plt.subplot(1, 3, 2)
+    plt.title("PCSS loss")
+    plt.plot(train_total_pcss_loss_list, label='train')
+    plt.plot(valid_total_pcss_loss_list, label='valid')
+    
+    plt.subplot(1, 3, 3)
+    plt.title("Weather loss")
+    plt.plot(train_total_acc_loss_list, label='train')
+    plt.plot(valid_total_acc_loss_list, label='valid')
+    plt.ylim(0, 2)    
+    
+    plt.legend()
+    plt.savefig(log_save_path + "/loss.png")
+    
+    # draw performance (train vs valid)
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.title("mIOU")
+    plt.plot(train_total_miou_list, label='train')
+    plt.plot(valid_total_miou_list, label='valid')
+    
+    plt.subplot(1, 2, 2)
+    plt.title("Weather accuracy")
+    plt.plot(train_total_acc_list, label='train')
+    plt.plot(valid_total_acc_list, label='valid')
+    
+    plt.legend()
+    plt.savefig(log_save_path + "/performance.png")
+    
+    
+    
 if __name__ == '__main__':
     # Training settings
     parser = argparse.ArgumentParser(description='')
