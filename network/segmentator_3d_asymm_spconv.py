@@ -714,7 +714,7 @@ class Asymm_3d_spconv_clf_v4(nn.Module):
         
         weather_feat1 = self.weather_logits(down4c)
         weather_feat2 = self.weather_max_pool(weather_feat1)
-        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2.features)))
+        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2)))
         weather_feat4 = self.bn2(self.relu2(self.weather_fc2(weather_feat3)))
         weather_result = self.weather_fc3(weather_feat4)
         

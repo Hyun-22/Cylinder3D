@@ -155,6 +155,9 @@ def main(args):
 
             weather_pred_list.append(max_weathers.item())
             weather_gt_list.append(weather_gt.item())
+            for count, i_val_grid in enumerate(val_grid):
+                hist_list.append(fast_hist_crop(predict_labels[count, val_grid[count][:, 0], val_grid[count][:, 1],val_grid[count][:, 2]], val_pt_labs[count], unique_label))
+            # valid_loss_list.append(loss.detach().cpu().numpy())
 
     weather_pred_arr = np.array(weather_pred_list)
     weather_gt_arr = np.array(weather_gt_list)
