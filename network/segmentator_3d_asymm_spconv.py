@@ -1839,24 +1839,7 @@ class Asymm_3d_spconv_clf_v15(nn.Module):
         # down3c : m, 256
         down3c, down3b = self.resBlock4(down2c)
         # down4c : m, 512
-        down4c, down4b = self.resBlock5(down3c)
-        
-        weather_feat1 = self.weather_logits(down4c)
-        weather_feat1 = weather_feat1.replace_feature(self.sp_relu1(weather_feat1.features))
-        weather_feat1 = weather_feat1.replace_feature(self.sp_bn1(weather_feat1.features))
-        
-        weather_feat2 = self.weather_avg_pool(weather_feat1)
-        weather_feat2_shorcut = self.weather_shortcut1(weather_feat2)
-        weather_feat3 = self.bn1(self.relu1(self.weather_fc1(weather_feat2)))
-        
-        # weather_feat : 2,3 residual
-        weather_feat3 = weather_feat3 + weather_feat2_shorcut
-        
-        weather_feat4 = self.bn2(self.relu2(self.weather_fc2(weather_feat3)))
-        weather_feat3_shorcut = self.weather_shortcut2(weather_feat3)
-        # weather_feat : 3,4 residual
-        weather_feat4 = weather_feat4 + weather_feat3_shorcut
-        weather_result = self.weather_fc3(weather_feat4)            
+        down4c, down4b = self.resBlock5(down3c)      
         
         up4e = self.upBlock0(down4c, down4b)
         up3e = self.upBlock1(up4e, down3b)
