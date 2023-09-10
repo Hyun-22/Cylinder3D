@@ -208,8 +208,8 @@ def main(args):
     with torch.no_grad():
         for path_idx, data_path in enumerate(data_paths):
             # if path_idx % 50 == 14 and path_idx > 2700 :
-            # if True:
-            if path_idx > 700:
+            if True:
+            # if path_idx > 700:
                 file_name = data_path.split(os.sep)[-1]
                 dst_path = os.path.join(result_dir, file_name)
                 dst_path = dst_path.replace(".bin", ".pcd")
