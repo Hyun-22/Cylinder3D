@@ -171,7 +171,8 @@ def main(args):
 
     grid_size = model_config['output_shape']
     train_dataloader_config = configs['train_data_loader']
-    model_load_path = train_hypers['model_load_path'].replace("load.pt", "save_partial_test.pt")
+    model_load_path = train_hypers['model_load_path']
+    # model_load_path = train_hypers['model_load_path'].replace("load.pt", "save_partial_test.pt")
     log_path = train_hypers['log_save_path']
     
     result_dir = os.path.join(log_path, "result_urban")
@@ -202,12 +203,13 @@ def main(args):
     vis.create_window()
     weather_status = {0:"sunny", 1:"Moderate", 2:"Heavy"}
     total_weather_pred = np.zeros((3,))
+    
     # validation
     with torch.no_grad():
         for path_idx, data_path in enumerate(data_paths):
             # if path_idx % 50 == 14 and path_idx > 2700 :
-            if True:
-            # if path_idx > 700:
+            # if True:
+            if path_idx > 700:
                 file_name = data_path.split(os.sep)[-1]
                 dst_path = os.path.join(result_dir, file_name)
                 dst_path = dst_path.replace(".bin", ".pcd")
@@ -266,7 +268,7 @@ def main(args):
                 point_cloud.colors = o3d.utility.Vector3dVector(color_pred)
 
                 # o3d.visualization.gui.Label3D(weather_status[max_weathers[0].item()], np.array((10,0,0)))
-                text = text_3d(weather_status[max_weathers[0].item()], np.array((1,0,0)))
+                # text = text_3d(weather_status[max_weathers[0].item()], np.array((1,0,0)))
 
                 total_weather_pred[max_weathers[0].item()] +=1
                 # print(weather_status[max_weathers[0].item()])
@@ -296,6 +298,13 @@ def main(args):
             else:
                 continue
     print(total_weather_pred)
+    x = range(1, len(weather_pred_list) + 1)  # x 축은 인덱스로 설정합니다.
+
+    plt.plot(x, weather_pred_list)
+    plt.xlabel('time')
+    plt.ylabel('pred_value')
+    plt.savefig(log_path+"/valid_result.png")
+    plt.close('all')
     # plt.hist(total_weather_pred)
     # plt.show()
 
