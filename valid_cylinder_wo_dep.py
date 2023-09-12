@@ -72,7 +72,8 @@ def lidar_preprocessing(lidar_path, fixed_volume_space, max_volume_space, min_vo
     sig = pcd_data[:, 3]    
     # roi slicing
     xyz = xyz[np.where((xyz[:, -1] < 2) & (xyz[:, -1] > -4))]
-    sig = sig[np.where((xyz[:, -1] < 2) & (xyz[:, -1] > -4))]
+    sig = sig[np.where((xyz[:, -1] < 2) & (xyz[:, -1] > -4))] * 3
+    sig = np.clip(sig, 0, 1)
     # print(sig.min(), sig.max())
     xyz_pol = cart2polar(xyz)
 

@@ -5,7 +5,7 @@ format_version: 4
 ## Model options
 model_params:
   # model_architecture: "cylinder_asym_ours"
-  model_architecture: "cylinder_asym_clf_v12"
+  model_architecture: "cylinder_asym_clf_v18"
 
   output_shape:
     - 480
@@ -61,9 +61,9 @@ val_data_loader:
 ###################
 ## Train params
 train_params:
-  model_load_path: "./logs/train_ours_valid_ours_snow_v16/model_load.pt"
-  model_save_path: "./logs/train_ours_valid_ours_snow_v16/model_save.pt"
-  log_save_path: "./logs/train_ours_valid_ours_snow_v16"
+  model_load_path: "./logs/train_ours_valid_ours_snow_v18/model_load.pt"
+  model_save_path: "./logs/train_ours_valid_ours_snow_v18/model_save.pt"
+  log_save_path: "./logs/train_ours_valid_ours_snow_v18"
   checkpoint_every_n_steps: 4599
   max_num_epochs: 20
   eval_every_n_steps: 4599

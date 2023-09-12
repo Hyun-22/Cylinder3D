@@ -116,30 +116,52 @@ def main(args):
             train_batch_size = train_vox_label.shape[0]
             weather_gt = torch.tensor(weather_gt).to(pytorch_device).long()
             # forward + backward + optimize
-            outputs, weathers = my_model(train_pt_fea_ten, train_vox_ten, train_batch_size)
+            if "wo-particle" in dataset_config["label_mapping"]:
+                # print("wo-particle")
+                outputs = my_model(train_pt_fea_ten, train_vox_ten, train_batch_size)
+                
+                pcss_loss = lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0) + loss_func(outputs, point_label_tensor) 
+                loss = pcss_loss
+                
+                predict_outputs = torch.argmax(outputs, dim=1)
+                predict_outputs = predict_outputs.cpu().detach().numpy()
+                
+                train_pcss_loss_list.append(pcss_loss.item())
+                train_loss_list.append(loss.item())
+                
+                # train_weather_pred_list.append(max_weathers.item())
+                # train_weather_gt_list.append(weather_gt.item())
+                # print("===================")
+                # print("pcss loss : ", pcss_loss)
+                
+                train_weather_gt_list += [0]
+                train_weather_pred_list += [0]
             
-            softmax_weathers = torch.softmax(weathers, dim=1)
-            max_weathers = torch.argmax(softmax_weathers, dim=1)
-            
-            pcss_loss = lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0) + loss_func(outputs, point_label_tensor) 
-            weather_loss = clf_loss_func(weathers, weather_gt)
-            loss = pcss_loss + weather_loss
-            
-            predict_outputs = torch.argmax(outputs, dim=1)
-            predict_outputs = predict_outputs.cpu().detach().numpy()
-            
-            train_pcss_loss_list.append(pcss_loss.item())
-            train_acc_loss_list.append(weather_loss.item())
-            train_loss_list.append(loss.item())
-            
-            # train_weather_pred_list.append(max_weathers.item())
-            # train_weather_gt_list.append(weather_gt.item())
-            train_weather_pred_list += list(max_weathers.detach().cpu().numpy())
-            train_weather_gt_list += list(weather_gt.detach().cpu().numpy())
-            print("===================")
-            print("pcss loss : ", pcss_loss)
-            print("weather prob : ", softmax_weathers)
-            print(max_weathers, weather_gt, weather_loss.item())
+            else:
+                outputs, weathers = my_model(train_pt_fea_ten, train_vox_ten, train_batch_size)
+                
+                softmax_weathers = torch.softmax(weathers, dim=1)
+                max_weathers = torch.argmax(softmax_weathers, dim=1)
+                
+                pcss_loss = lovasz_softmax(torch.nn.functional.softmax(outputs), point_label_tensor, ignore=0) + loss_func(outputs, point_label_tensor) 
+                weather_loss = clf_loss_func(weathers, weather_gt)
+                loss = pcss_loss + weather_loss
+                
+                predict_outputs = torch.argmax(outputs, dim=1)
+                predict_outputs = predict_outputs.cpu().detach().numpy()
+                
+                train_pcss_loss_list.append(pcss_loss.item())
+                train_acc_loss_list.append(weather_loss.item())
+                train_loss_list.append(loss.item())
+                
+                # train_weather_pred_list.append(max_weathers.item())
+                # train_weather_gt_list.append(weather_gt.item())
+                train_weather_pred_list += list(max_weathers.detach().cpu().numpy())
+                train_weather_gt_list += list(weather_gt.detach().cpu().numpy())
+                print("===================")
+                print("pcss loss : ", pcss_loss)
+                print("weather prob : ", softmax_weathers)
+                print(max_weathers, weather_gt, weather_loss.item())
             
             loss.backward()
             optimizer.step()
@@ -180,37 +202,54 @@ def main(args):
         valid_weather_gt_list = []
         # validation
         with torch.no_grad():
-            for i_iter_val, (_, val_vox_label, val_grid, val_pt_labs, val_pt_fea, weather_gt) in enumerate(
-                    val_dataset_loader):
-
+            for i_iter_val, (_, val_vox_label, val_grid, val_pt_labs, val_pt_fea, weather_gt) in enumerate(val_dataset_loader):
                 val_pt_fea_ten = [torch.from_numpy(i).type(torch.FloatTensor).to(pytorch_device) for i in
-                                    val_pt_fea]
+                val_pt_fea]
                 val_grid_ten = [torch.from_numpy(i).to(pytorch_device) for i in val_grid]
                 val_label_tensor = val_vox_label.type(torch.LongTensor).to(pytorch_device)
                 val_batch_size = val_vox_label.shape[0]
                 weather_gt = torch.tensor(weather_gt).to(pytorch_device).long()
-                
-                predict_labels, predict_weathers = my_model(val_pt_fea_ten, val_grid_ten, val_batch_size)
-                
-                softmax_weathers = torch.softmax(predict_weathers, dim=1)
-                max_weathers = torch.argmax(softmax_weathers, dim=1)
+                    
+                if "wo-particle" in dataset_config["label_mapping"]:
+                    predict_labels = my_model(val_pt_fea_ten, val_grid_ten, val_batch_size)
 
-                # aux_loss = loss_fun(aux_outputs, point_label_tensor)
-                pcss_loss = lovasz_softmax(torch.nn.functional.softmax(predict_labels), val_label_tensor, ignore=0) + loss_func(predict_labels, val_label_tensor) 
-                weather_loss = clf_loss_func(predict_weathers, weather_gt)
-                loss = pcss_loss + weather_loss
-                
-                predict_labels = torch.argmax(predict_labels, dim=1)
-                predict_labels = predict_labels.cpu().detach().numpy()
+                    # aux_loss = loss_fun(aux_outputs, point_label_tensor)
+                    pcss_loss = lovasz_softmax(torch.nn.functional.softmax(predict_labels), val_label_tensor, ignore=0) + loss_func(predict_labels, val_label_tensor) 
+                    loss = pcss_loss
+                    
+                    predict_labels = torch.argmax(predict_labels, dim=1)
+                    predict_labels = predict_labels.cpu().detach().numpy()
+                    
+                    valid_pcss_loss_list.append(pcss_loss.item())
+                    valid_loss_list.append(loss.item())
+                    
+                    valid_weather_gt_list += [0]
+                    valid_weather_pred_list += [0]
+                    
+                else:                    
+                    predict_labels, predict_weathers = my_model(val_pt_fea_ten, val_grid_ten, val_batch_size)
+                    
+                    softmax_weathers = torch.softmax(predict_weathers, dim=1)
+                    max_weathers = torch.argmax(softmax_weathers, dim=1)
 
-                valid_weather_pred_list.append(max_weathers.item())
-                valid_weather_gt_list.append(weather_gt.item())
-                print("===================")
-                print(max_weathers, weather_gt, weather_loss.item())
+                    # aux_loss = loss_fun(aux_outputs, point_label_tensor)
+                    pcss_loss = lovasz_softmax(torch.nn.functional.softmax(predict_labels), val_label_tensor, ignore=0) + loss_func(predict_labels, val_label_tensor) 
+                    weather_loss = clf_loss_func(predict_weathers, weather_gt)
+                    loss = pcss_loss + weather_loss
+                    
+                    predict_labels = torch.argmax(predict_labels, dim=1)
+                    predict_labels = predict_labels.cpu().detach().numpy()
+
+                    valid_weather_pred_list.append(max_weathers.item())
+                    valid_weather_gt_list.append(weather_gt.item())
+                    # print("===================")
+                    # print(max_weathers, weather_gt, weather_loss.item())
+                    
+                    valid_pcss_loss_list.append(pcss_loss.item())
+                    valid_acc_loss_list.append(weather_loss.item())
+                    valid_loss_list.append(loss.item())
                 
-                valid_pcss_loss_list.append(pcss_loss.item())
-                valid_acc_loss_list.append(weather_loss.item())
-                valid_loss_list.append(loss.item())
+                
                 for count, i_val_grid in enumerate(val_grid):
                     valid_hist_list.append(fast_hist_crop(predict_labels[count, val_grid[count][:, 0], val_grid[count][:, 1],val_grid[count][:, 2]], val_pt_labs[count], unique_label))
                 valid_loss_list.append(loss.detach().cpu().numpy())

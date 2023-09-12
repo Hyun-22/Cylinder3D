@@ -47,7 +47,29 @@ class cylinder_asym(nn.Module):
         spatial_features = self.cylinder_3d_spconv_seg(features_3d, coords, batch_size)
         weather_result = self.weather_clf(pts_feature, coords)
         return spatial_features, weather_result
+@register_model
+class cylinder_asym_original(nn.Module):
+    '''
+    network for lisa dataset
+    '''
+    def __init__(self,
+                 cylin_model,
+                 segmentator_spconv,
+                 sparse_shape,
+                 ):
+        super().__init__()
+        self.name = "cylinder_asym"
 
+        self.cylinder_3d_generator = cylin_model
+        self.cylinder_3d_spconv_seg = segmentator_spconv
+        self.sparse_shape = sparse_shape
+
+    def forward(self, train_pt_fea_ten, train_vox_ten, batch_size):
+        coords, features_3d, pts_feature = self.cylinder_3d_generator(train_pt_fea_ten, train_vox_ten)
+        spatial_features = self.cylinder_3d_spconv_seg(features_3d, coords, batch_size)
+        # weather_result = self.weather_clf(pts_feature, coords)
+        return spatial_features
+    
 @register_model
 class cylinder_asym_ours(nn.Module):
     '''
@@ -513,8 +535,8 @@ class cylinder_asym_clf_v18(nn.Module):
 
     def forward(self, train_pt_fea_ten, train_vox_ten, batch_size):
         coords, features_3d, pts_feature = self.cylinder_3d_generator(train_pt_fea_ten, train_vox_ten)
-        spatial_features, _ = self.cylinder_3d_spconv_seg(features_3d, coords, batch_size)
-        weather_result = self.weather_clf(pts_feature, coords)
+        spatial_features, _, voxel_feature = self.cylinder_3d_spconv_seg(features_3d, coords, batch_size)
+        weather_result = self.weather_clf(pts_feature, coords, voxel_feature)
         return spatial_features, weather_result       
 @register_model
 class cylinder_asym_clf_test(nn.Module):
@@ -621,36 +643,40 @@ class classification_v18(nn.Module):
         super(classification_v18, self).__init__()
         # clear / Moderate / Heavy
         self.num_class = num_class
-        self.fc1 = nn.Linear(256, 128)
-        self.shortcut1 = nn.Linear(256, 128)
-        self.bn1 = nn.BatchNorm1d(128)
+        self.voxel_fc1 = nn.Linear(512, 256)
+        self.fc1 = nn.Linear(512, 256)
+        self.shortcut1 = nn.Linear(512, 256)
+        self.bn1 = nn.BatchNorm1d(256)
         
-        self.fc2 = nn.Linear(128, 64)
-        self.shortcut2 = nn.Linear(128, 64)
-        self.bn2 = nn.BatchNorm1d(64)
+        self.fc2 = nn.Linear(256, 128)
+        self.shortcut2 = nn.Linear(256, 128)
+        self.bn2 = nn.BatchNorm1d(128)
         
-        self.fc3 = nn.Linear(64, self.num_class)
+        self.fc3 = nn.Linear(128, self.num_class)
         self.dropout = nn.Dropout(p=0.4)
         self.relu = nn.ReLU()
 
-    def forward(self, point_feature, voxel_feature, coords):
+    def forward(self, point_feature, coords, voxel_feature):
+        
+
         _, all_cnt = torch.unique(coords[:, 0], return_counts = True)
         batch_size = coords[:, 0].max() + 1
         prev_cnt = 0
-        ret = torch.zeros(batch_size, self.num_class).to(point_feature.device)
+        ret = torch.zeros(batch_size, 256).to(point_feature.device)
         fc1_feature = torch.zeros(batch_size, 128).to(point_feature.device)
         shortcut1_feature = torch.zeros(batch_size, 128).to(point_feature.device)
-                        
+
+        voxel_256 = self.voxel_fc1(voxel_feature)
         for idx, cnt in enumerate(all_cnt):
             slice_x = point_feature[prev_cnt:prev_cnt+cnt]
             max_x, _ = torch.max(slice_x, dim=0)
-            max_x = max_x.unsqueeze(0)            
-            # 1, 256
-            shortcut1_feature[idx] = self.shortcut1(max_x)
-            # 1,256
-            fc1_feature[idx] = self.relu(self.fc1(max_x))
+            # max_x = max_x.unsqueeze(0)            
             prev_cnt += cnt
-        
+            ret[idx] = max_x
+            # 1, 256
+        cat_feature = torch.concat((ret, voxel_256), dim=1)
+        shortcut1_feature = self.shortcut1(cat_feature)
+        fc1_feature = self.relu(self.fc1(cat_feature))
         bn1_feature = self.bn1(fc1_feature)
         residual_feature = bn1_feature + shortcut1_feature
         
@@ -659,5 +685,4 @@ class classification_v18(nn.Module):
         x = x + shortcut2_feature
 
         x = self.fc3(x)
-
         return x     

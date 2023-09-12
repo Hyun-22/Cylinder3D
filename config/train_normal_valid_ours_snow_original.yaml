@@ -4,8 +4,7 @@ format_version: 4
 ###################
 ## Model options
 model_params:
-  # model_architecture: "cylinder_asym_ours"
-  model_architecture: "cylinder_asym_clf_v17"
+  model_architecture: "cylinder_asym_original"
 
   output_shape:
     - 480
@@ -20,7 +19,6 @@ model_params:
   init_size: 32
 
 
-
 ###################
 ## Dataset options
 dataset_params:
@@ -29,7 +27,7 @@ dataset_params:
   ignore_label: 0
   return_test: False
   fixed_volume_space: True
-  label_mapping: "./config/label_mapping/semantic-kitti-weather-mini.yaml"
+  label_mapping: "./config/label_mapping/semantic-kitti-weather-mini-wo-particle.yaml"
   max_volume_space:
     - 50
     - 3.1415926
@@ -62,9 +60,9 @@ val_data_loader:
 ###################
 ## Train params
 train_params:
-  model_load_path: "./logs/train_normal_valid_ours_snow_v17/model_load.pt"
-  model_save_path: "./logs/train_normal_valid_ours_snow_v17/model_save.pt"
-  log_save_path: "./logs/train_normal_valid_ours_snow_v17"
+  model_load_path: "./logs/train_normal_valid_ours_snow_original/model_load.pt"
+  model_save_path: "./logs/train_normal_valid_ours_snow_original/model_save.pt"
+  log_save_path: "./logs/train_normal_valid_ours_snow_original"
   checkpoint_every_n_steps: 4599
   max_num_epochs: 20
   eval_every_n_steps: 4599
